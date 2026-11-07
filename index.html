@@ -1,7 +1,8 @@
 
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<link rel="manifest" href="./manifest.webmanifest">
+ <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#071b30">
@@ -28,7 +29,14 @@ button:disabled{opacity:.5}
 footer{text-align:center;color:#91aabe;font-size:11px;padding:20px}
 </style>
 </head>
-<body>
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js");
+  });
+}
+</script>
+ <body>
 <header>
 <h1>🌧️ FLOODCAST</h1>
 <p>Localized Flash Flood Monitoring and Weather-Based Risk Assessment</p>

@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#071b30">
+<title>FLOODCAST</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#071525;color:#fff;font-family:Arial,sans-serif}
+header{background:#0b2944;padding:22px 18px}
+header h1{margin:0;color:#42d6f5;font-size:27px}
+header p{margin:7px 0 0;color:#c2d8e8;font-size:13px}
+main{padding:18px;max-width:700px;margin:auto}
+.card{background:#102b43;border:1px solid #244761;border-radius:13px;padding:17px;margin-bottom:15px}
+h2{font-size:17px;margin:0 0 13px}
+input,button{width:100%;padding:13px;border-radius:8px;font-size:15px;margin:5px 0}
+input{background:#071b30;border:1px solid #42617a;color:white}
+button{background:#12a9d0;color:white;border:0;font-weight:bold}
+button:disabled{opacity:.5}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.metric{background:#183b57;padding:13px;border-radius:10px}
+.metric small{color:#b8d4e6}
+.metric strong{display:block;font-size:23px;margin-top:7px}
+#risk{font-size:23px;font-weight:bold;color:#65e3a1}
+#status{color:#b8d4e6;font-size:13px;line-height:1.5}
+footer{text-align:center;color:#91aabe;font-size:11px;padding:20px}
+</style>
+</head>
+<body>
+<header>
+<h1>🌧️ FLOODCAST</h1>
+<p>Localized Flash Flood Monitoring and Weather-Based Risk Assessment</p>
+</header>
+<main>
+<div class="card">
+<h2>📍 Location</h2>
+<input id="place" value="Bayugan City, Philippines" placeholder="Enter your location">
+<button onclick="searchPlace()">Search Location</button>
+<button onclick="useLocation()">Use My Current Location</button>
+<p id="status">Enter a location to retrieve weather information.</p>
+</div>
+
+<div class="card">
+<h2>🌦️ Current Weather</h2>
+<div class="grid">
+<div class="metric"><small>Temperature</small><strong id="temp">--</strong></div>
+<div class="metric"><small>Humidity</small><strong id="humidity">--</strong></div>
+<div class="metric"><small>Wind Speed</small><strong id="wind">--</strong></div>
+<div class="metric"><small>Rainfall</small><strong id="rain">--</strong></div>
+</div>
+</div>
+
+<div class="card">
+<h2>⚠️ Weather-Based Risk Indicator</h2>
+<div id="risk">Waiting for data</div>
+<p id="explanation">Weather information will appear here after searching for a location.</p>
+<p id="updated" style="color:#b8d4e6;font-size:12px"></p>
+</div>
+
+<div class="card">
+<h2>📊 Next 6 Hours</h2>
+<div class="grid">
+<div class="metric"><small>Expected Rainfall</small><strong id="futureRain">--</strong></div>
+<div class="metric"><small>Rain Probability</small><strong id="probability">--</strong></div>
+</div>
+</div>
+
+<div class="card">
+<h2>ℹ️ About FLOODCAST</h2>
+<p style="line-height:1.6;color:#c2d8e8;font-size:13px">
+FLOODCAST is a research prototype that uses real-time weather observations and mathematical concepts to examine changing weather conditions associated with possible localized flooding.
+</p>
+<p style="line-height:1.6;color:#c2d8e8;font-size:13px">
+Its risk indicator is experimental. It is not a verified flood prediction or an official warning system. Always follow PAGASA and local disaster-management advisories.
+</p>
+</div>
+</main>
+<footer>FLOODCAST Research Project · Weather data: Open-Meteo</footer>
+
+<script>
+async function searchPlace(){
+ const name=document.getElementById('place').value.trim();
+ if(!name){alert('Please enter a location.');return;}
+ setStatus('Searching for location...');
+ try{
+  const url='https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(name)+'&count=1&language=en&format=json';
+  const response=await fetch(url);
+  const data=await response.json();
+  if(!data.results || !data.results.length){
+   setStatus('Location not found. Try another location name.');
+   return;
+  }
+  const p=data.results[0];
+  document.getElementById('place').value=p.name+', '+(p.admin1||'')+', '+(p.country||'');
+  await getWeather(p.latitude,p.longitude);
+ }catch(e){setStatus('Unable to retrieve location. Check your internet connection.');}
+}
+
+async function useLocation(){
+ if(!navigator.geolocation){
+  setStatus('Location services are not supported by this browser.');
+  return;
+ }
+ setStatus('Requesting your location...');
+ navigator.geolocation.getCurrentPosition(
+  async p=>{
+   await getWeather(p.coords.latitude,p.coords.longitude);
+  },
+  ()=>setStatus('Location permission was not granted. You can search manually.')
+ );
+}
+
+async function getWeather(lat,lon){
+ setStatus('Retrieving live weather data...');
+ try{
+  const url='https://api.open-meteo.com/v1/forecast?latitude='+lat+'&longitude='+lon+
+  '&current=temperature_2m,relative_humidity_2m,precipitation,rain,wind_speed_10m,cloud_cover'+
+  '&hourly=precipitation,precipitation_probability&forecast_days=1&timezone=auto';
+  const response=await fetch(url);
+  const data=await response.json();
+  if(!data.current)throw new Error('No weather data');
+  const c=data.current;
+  document.getElementById('temp').textContent=c.temperature_2m+' °C';
+  document.getElementById('humidity').textContent=c.relative_humidity_2m+' %';
+  document.getElementById('wind').textContent=c.wind_speed_10m+' km/h';
+  document.getElementById('rain').textContent=c.precipitation+' mm';
+  const now=new Date(c.time).getTime();
+  let total=0, chances=[];
+  data.hourly.time.forEach((t,i)=>{
+   const hour=new Date(t).getTime();
+   if(hour>=now && hour<now+6*3600000){
+    total+=data.hourly.precipitation[i]||0;
+    chances.push(data.hourly.precipitation_probability[i]||0);
+   }
+  });
+  document.getElementById('futureRain').textContent=total.toFixed(1)+' mm';
+  document.getElementById('probability').textContent=(chances.length?Math.max(...chances):0)+' %';
+  assessRisk(c,total,chances);
+  document.getElementById('updated').textContent='Weather observation: '+c.time+' ('+data.timezone+')';
+  setStatus('Weather data successfully retrieved for '+document.getElementById('place').value+'.');
+ }catch(e){setStatus('Weather data unavailable. Please try again later.');}
+}
+
+function assessRisk(c,rain,chances){
+ let score=0;
+ if(rain>=10)score+=2;
+ else if(rain>=3)score++;
+ if(c.precipitation>=5)score+=2;
+ else if(c.precipitation>0)score++;
+ if(c.relative_humidity_2m>=85)score++;
+ if(c.cloud_cover>=90)score++;
+ if(chances.length && Math.max(...chances)>=70)score++;
+ let level='LOW',color='#65e3a1',message='Current weather indicators show relatively low rainfall-related concern. Continue monitoring conditions.';
+ if(score>=5){
+  level='HIGH';color='#ff7373';
+  message='Several weather indicators are elevated. Monitor official local advisories and avoid flood-prone areas if conditions worsen.';
+ }else if(score>=3){
+  level='MODERATE';color='#ffd166';
+  message='Some weather indicators are elevated. Stay alert and monitor rainfall and local advisories.';
+ }
+ document.getElementById('risk').textContent=level;
+ document.getElementById('risk').style.color=color;
+ document.getElementById('explanation').textContent=message;
+}
+
+function setStatus(message){
+ document.getElementById('status').textContent=message;
+}
+
+searchPlace();
+</script>
+</body>
+  </html>
+  
